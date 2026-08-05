@@ -31,15 +31,33 @@ contract StrategyFactory {
     /**
      * @notice Deploy a new Strategy.
      * @param _asset The underlying asset for the strategy to use.
+     * @param _name The name of the strategy.
+     * @param _alAsset The Alchemix synthetic the strategy accumulates.
+     * @param _transmuter The Alchemix v3 transmuter for `_alAsset`.
+     * @param _auctionGovernance Governance of the strategy's embedded auction.
+     * @param _auctionStartingPrice Starting price for the embedded auction.
      * @return . The address of the new strategy.
      */
     function newStrategy(
         address _asset,
-        string calldata _name
+        string calldata _name,
+        address _alAsset,
+        address _transmuter,
+        address _auctionGovernance,
+        uint256 _auctionStartingPrice
     ) external virtual returns (address) {
         // tokenized strategies available setters.
         IStrategyInterface _newStrategy = IStrategyInterface(
-            address(new Strategy(_asset, _name))
+            address(
+                new Strategy(
+                    _asset,
+                    _name,
+                    _alAsset,
+                    _transmuter,
+                    _auctionGovernance,
+                    _auctionStartingPrice
+                )
+            )
         );
 
         _newStrategy.setPerformanceFeeRecipient(performanceFeeRecipient);
