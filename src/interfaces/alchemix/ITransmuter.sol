@@ -15,6 +15,7 @@ interface ITransmuter {
     function exitFee() external view returns (uint256);
     function depositCap() external view returns (uint256);
     function totalLocked() external view returns (uint256);
+    function totalActiveLocked() external view returns (uint256);
 
     function getPosition(uint256 id) external view returns (StakingPosition memory);
     function createRedemption(uint256 syntheticDepositAmount, address recipient) external;
