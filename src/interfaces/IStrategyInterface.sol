@@ -18,17 +18,17 @@ interface IStrategyInterface is IStrategy {
 
     function minRedemptionAmount() external view returns (uint256);
 
-    function depositLimit() external view returns (uint256);
-
     function minAuctionAmount() external view returns (uint256);
 
     function maxAuctionAmount() external view returns (uint256);
 
-    function maxTendBasefeeGwei() external view returns (uint256);
+    function maxTendBasefee() external view returns (uint256);
 
     function kickCooldown() external view returns (uint256);
 
     function startingPricePerUnit() external view returns (uint256);
+
+    function minimumPrice() external view returns (uint256);
 
     function AL_ASSET() external view returns (address);
 
@@ -54,29 +54,23 @@ interface IStrategyInterface is IStrategy {
 
     function setMinRedemptionAmount(uint256 _minRedemptionAmount) external;
 
-    function setDepositLimit(uint256 _depositLimit) external;
-
     function setAuctionAmounts(uint256 _minAuctionAmount, uint256 _maxAuctionAmount) external;
 
-    function setMaxTendBasefeeGwei(uint256 _maxTendBasefeeGwei) external;
+    function setMaxTendBasefee(uint256 _maxTendBasefee) external;
 
     function setKickCooldown(uint256 _kickCooldown) external;
 
-    function setStartingPricePerUnit(uint256 _startingPricePerUnit) external;
+    function setAuctionPrices(uint256 _startingPricePerUnit, uint256 _minimumPrice) external;
 
-    function setAssetAuctionMinimumPrice(uint256 _minimumPrice) external;
+    function setAuctionSteps(bool _alAssetAuction, uint256 _stepDecayRate, uint256 _stepDuration) external;
 
-    function setAssetAuctionSteps(uint256 _stepDecayRate, uint256 _stepDuration) external;
+    function manualClaim(uint256 _index) external;
 
-    function manualClaimPosition(uint256 _index) external;
-
-    function manualWithdrawFromMytVault(uint256 _shares) external;
+    function manualRedeemMYT(uint256 _shares) external;
 
     function kickAlAssetAuction(uint256 _amount, uint256 _startingPricePerUnit, uint256 _minimumPrice) external;
 
-    function sweepAssetAuction() external;
-
-    function sweepAlAssetAuction() external;
+    function sweepAuction(bool _alAssetAuction) external;
 
     function sweep(address _token) external;
 
@@ -85,8 +79,6 @@ interface IStrategyInterface is IStrategy {
     // ===============================================================
 
     function kickAuction(address _from) external returns (uint256);
-
-    function kickable(address _from) external view returns (uint256);
 
     function auctionTrigger(address _from) external view returns (bool, bytes memory);
 }
