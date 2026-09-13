@@ -8,27 +8,27 @@ interface IStrategyInterface is IStrategy {
     // Views
     // ===============================================================
 
-    function positionIds(uint256 _index) external view returns (uint256);
+    function positions(uint256 _index) external view returns (uint128 id, uint128 price);
 
     function positionCount() external view returns (uint256);
 
     function estimatedTotalAssets() external view returns (uint256);
 
-    function maxPositions() external view returns (uint256);
+    function maxPositions() external view returns (uint16);
 
-    function minRedemptionAmount() external view returns (uint256);
+    function kickCooldown() external view returns (uint32);
 
-    function minAuctionAmount() external view returns (uint256);
+    function maxTendBasefee() external view returns (uint64);
 
-    function maxAuctionAmount() external view returns (uint256);
+    function minimumPrice() external view returns (uint96);
 
-    function maxTendBasefee() external view returns (uint256);
+    function startingPricePerUnit() external view returns (uint96);
 
-    function kickCooldown() external view returns (uint256);
+    function minAuctionAmount() external view returns (uint96);
 
-    function startingPricePerUnit() external view returns (uint256);
+    function maxAuctionAmount() external view returns (uint96);
 
-    function minimumPrice() external view returns (uint256);
+    function minRedemptionAmount() external view returns (uint96);
 
     function AL_ASSET() external view returns (address);
 
@@ -50,17 +50,17 @@ interface IStrategyInterface is IStrategy {
     // Management
     // ===============================================================
 
-    function setMaxPositions(uint256 _maxPositions) external;
+    function setMaxPositions(uint16 _maxPositions) external;
 
-    function setMinRedemptionAmount(uint256 _minRedemptionAmount) external;
+    function setMinRedemptionAmount(uint96 _minRedemptionAmount) external;
 
-    function setAuctionAmounts(uint256 _minAuctionAmount, uint256 _maxAuctionAmount) external;
+    function setAuctionAmounts(uint96 _minAuctionAmount, uint96 _maxAuctionAmount) external;
 
-    function setMaxTendBasefee(uint256 _maxTendBasefee) external;
+    function setMaxTendBasefee(uint64 _maxTendBasefee) external;
 
-    function setKickCooldown(uint256 _kickCooldown) external;
+    function setKickCooldown(uint32 _kickCooldown) external;
 
-    function setAuctionPrices(uint256 _startingPricePerUnit, uint256 _minimumPrice) external;
+    function setAuctionPrices(uint96 _startingPricePerUnit, uint96 _minimumPrice) external;
 
     function setAuctionSteps(bool _alAssetAuction, uint256 _stepDecayRate, uint256 _stepDuration) external;
 
