@@ -13,7 +13,6 @@ import {Auction} from "@periphery/Auctions/Auction.sol";
 
 // Inherit the events so they can be checked if desired.
 import {IEvents} from "@tokenized-strategy/interfaces/IEvents.sol";
-import {IBaseHealthCheck} from "@periphery/Bases/HealthCheck/IBaseHealthCheck.sol";
 
 interface IFactory {
 
@@ -89,6 +88,7 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         s_performanceFeeRecipient = performanceFeeRecipient;
         s_keeper = keeper;
         s_emergencyAdmin = emergencyAdmin;
+        s_minRedemptionAmount = 100e18;
 
         // Deploy strategy and set variables
         strategy = IStrategyInterface(setUpStrategy());
@@ -124,14 +124,14 @@ contract Setup is Deploy, ExtendedTest, IEvents {
 
         vm.startPrank(management);
         _strategy.acceptManagement();
+        // Deposits are whitelisted until opened
+        _strategy.setOpen(true);
         // Kicks are blocked until the auction amounts are set
         _strategy.setAuctionAmounts(1e6, type(uint96).max);
-        // Claims at maturity hand back dust alAsset. Don't open positions for it
-        _strategy.setMinRedemptionAmount(1e18);
         // Exact accounting in tests. `test_profitableReport_withFees` sets its own fee
         _strategy.setPerformanceFee(0);
         // Allow dust losses from MYT vault rounding on redeem
-        IBaseHealthCheck(address(_strategy)).setLossLimitRatio(10);
+        _strategy.setLossLimitRatio(10);
         vm.stopPrank();
 
         return address(_strategy);

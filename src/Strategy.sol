@@ -73,7 +73,7 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
 
     /// @notice Auction price decay: 1 bp every 3 minutes
     uint256 internal constant _AUCTION_STEP_DECAY_RATE = 1;
-    uint256 internal constant _AUCTION_STEP_DURATION = 3 minutes;
+    uint256 internal constant _AUCTION_STEP_DURATION = 3 minutes; // @audit -- why 3 min? probably better like 3 blocks ish so like 1 min?
 
     /// @notice Divides alAsset amounts down to `asset` decimals
     uint256 public immutable AL_TO_ASSET_SCALER;
@@ -209,7 +209,7 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
 
     /// @inheritdoc BaseStrategy
     function availableDepositLimit(
-        address /*_owner*/
+        address _owner
     ) public view override returns (uint256) {
         // What the transmuter can still absorb, in `asset`
         uint256 _headroom = _transmuterHeadroom() / AL_TO_ASSET_SCALER;
@@ -219,7 +219,8 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         uint256 _queued = asset.balanceOf(address(this)) + asset.balanceOf(address(ASSET_AUCTION))
             + (AL_ASSET.balanceOf(address(this)) + AL_ASSET.balanceOf(address(AL_ASSET_AUCTION))) / AL_TO_ASSET_SCALER;
 
-        return _queued < _headroom ? _headroom - _queued : 0;
+        // Bounded by the BaseHealthCheck limit and the transmuter's headroom
+        return Math.min(BaseHealthCheck.availableDepositLimit(_owner), _queued < _headroom ? _headroom - _queued : 0);
     }
 
     /// @inheritdoc BaseStrategy
@@ -295,7 +296,8 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     }
 
     /// @notice Set the asset auction's opening price and floor
-    /// @dev The floor is also the price untransmuted alAsset is valued at. Applies from the next kick
+    /// @dev Auction prices apply from the next kick. The floor also values idle alAsset
+    /// right away and is frozen per position at its tend, so tend before changing it
     /// @param _startingPricePerUnit Opening price in alAsset per `asset`, WAD scaled
     /// @param _minimumPrice Price floor in alAsset per `asset`, WAD scaled, above par
     function setAuctionPrices(
@@ -364,7 +366,7 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     /// @notice Kick the alAsset auction, selling idle alAsset for `asset`
     /// @dev Emergency exit for alAsset that can't be transmuted. Reverts while a
     /// previous alAsset auction is live
-    /// @param _amount Amount of alAsset to sell
+    /// @param _amount Amount of alAsset to sell, on top of any unsold lot
     /// @param _startingPricePerUnit Opening price in `asset` per alAsset, WAD scaled
     /// @param _minimumPrice Price floor in `asset` per alAsset, WAD scaled
     function kickAlAssetAuction(
@@ -374,14 +376,17 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     ) external onlyEmergencyAuthorized {
         require(_minimumPrice != 0 && _startingPricePerUnit > _minimumPrice, "!price");
 
+        // Any unsold lot is sold along
+        uint256 _lot = _amount + AL_ASSET.balanceOf(address(AL_ASSET_AUCTION));
+
         // Price the lot. `startingPrice` is the whole lot in whole tokens
         (, uint64 _scaler,) = AL_ASSET_AUCTION.auctions(address(AL_ASSET));
         AL_ASSET_AUCTION.setMinimumPrice(_minimumPrice);
-        AL_ASSET_AUCTION.setStartingPrice(Math.mulDiv(_startingPricePerUnit, _amount * _scaler, _WAD, Math.Rounding.Up));
+        AL_ASSET_AUCTION.setStartingPrice(Math.mulDiv(_startingPricePerUnit, _lot * _scaler, _WAD, Math.Rounding.Up));
 
         // Fund and kick
         AL_ASSET.safeTransfer(address(AL_ASSET_AUCTION), _amount);
-        AL_ASSET_AUCTION.kick(address(AL_ASSET));
+        AL_ASSET_AUCTION.forceKick(address(AL_ASSET));
     }
 
     /// @notice Pull the lot back from an auction and end it if live
@@ -428,7 +433,7 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
 
         // Fund and kick
         asset.safeTransfer(address(ASSET_AUCTION), _available);
-        ASSET_AUCTION.kick(_from);
+        ASSET_AUCTION.forceKick(_from);
     }
 
     // ===============================================================
@@ -446,7 +451,7 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     function _freeFunds(
         uint256 /*_amount*/
     ) internal override {
-        // Sweep idle assets from an expired auction. Never touches a live one
+        // Sweep idle assets from an expired auction. Don't touch a live one
         if (!ASSET_AUCTION.isActive(address(asset)) && asset.balanceOf(address(ASSET_AUCTION)) != 0) {
             ASSET_AUCTION.sweep(address(asset));
         }

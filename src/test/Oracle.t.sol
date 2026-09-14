@@ -2,6 +2,7 @@
 pragma solidity ^0.8.21;
 
 import {Setup, ITransmuter} from "./utils/Setup.sol";
+import {IAlchemistV3} from "../interfaces/alchemix/IAlchemistV3.sol";
 
 import {StrategyAprOracle} from "../periphery/StrategyAprOracle.sol";
 
@@ -42,6 +43,17 @@ contract OracleTest is Setup {
         assertApproxEq(apr, grossApr(), 1e12, "!apr");
         assertGt(apr, 0, "ZERO");
         assertLt(apr, 1e18, "+100%");
+
+        // Bad debt haircuts the gain and the total alike
+        address alchemist = strategy.ALCHEMIST();
+        uint256 issued = IAlchemistV3(alchemist).totalSyntheticsIssued();
+        uint256 eta = strategy.estimatedTotalAssets();
+        vm.mockCall(
+            alchemist, abi.encodeWithSelector(IAlchemistV3.totalSyntheticsIssued.selector), abi.encode(issued * 10)
+        );
+        assertLt(strategy.estimatedTotalAssets(), eta, "!haircut");
+        assertApproxEq(oracle.aprAfterDebtChange(address(strategy), 0), apr, 1e12, "!bad debt");
+        vm.clearMockedCalls();
 
         // New idle asset dilutes
         mintAndDepositIntoStrategy(strategy, user, _amount);

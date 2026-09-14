@@ -21,6 +21,7 @@ contract Deploy is Script {
     address public s_performanceFeeRecipient;
     address public s_keeper;
     address public s_emergencyAdmin;
+    uint96 public s_minRedemptionAmount;
     IStrategyInterface public s_newStrategy;
 
     address public constant SMS = 0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7; // SMS mainnet
@@ -46,6 +47,7 @@ contract Deploy is Script {
             s_performanceFeeRecipient = ACCOUNTANT;
             s_keeper = YHAAS;
             s_emergencyAdmin = SMS;
+            s_minRedemptionAmount = 100e18; // 100 alUSD
         }
 
         string memory _name = "Alchemix alUSD Automated Transmuter";
@@ -56,6 +58,7 @@ contract Deploy is Script {
         s_newStrategy = IStrategyInterface(address(new Strategy(s_asset, _name, s_alAsset, s_transmuter)));
 
         // init
+        s_newStrategy.setMinRedemptionAmount(s_minRedemptionAmount);
         s_newStrategy.setPerformanceFeeRecipient(s_performanceFeeRecipient);
         s_newStrategy.setKeeper(s_keeper);
         s_newStrategy.setPendingManagement(s_management);

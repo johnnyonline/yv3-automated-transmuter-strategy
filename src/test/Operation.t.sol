@@ -425,6 +425,28 @@ contract OperationTest is Setup {
         assertApproxEq(assetAuction.price(address(asset)), 1.15e18, 1e12, "!opening price");
     }
 
+    // Repricing right after an unsold auction ends can't revive it
+    function test_kickAuction_afterUnsold(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        vm.prank(management);
+        strategy.setKickCooldown(0);
+
+        // Ends by crossing the floor, well before the 24h auction length
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+        kick();
+        skip(23 hours);
+        assertFalse(assetAuction.isActive(address(asset)), "!ended");
+
+        vm.prank(management);
+        strategy.setAuctionPrices(1.5e18, 1.4e18);
+        kick();
+        assertEq(assetAuction.available(address(asset)), _amount, "!available");
+        assertApproxEq(assetAuction.price(address(asset)), 1.5e18, 1e12, "!price");
+    }
+
     function test_kickAuction_wrongCaller(
         uint256 _amount
     ) public {
@@ -594,6 +616,23 @@ contract OperationTest is Setup {
 
         vm.mockCall(adapter, abi.encodeWithSelector(IMYTStrategy.realAssets.selector), abi.encode(1e6));
         assertEq(strategy.availableWithdrawLimit(user), asset.balanceOf(address(myt)) + 1e6, "!realAssets");
+    }
+
+    // Deposits follow BaseHealthCheck's whitelist
+    function test_depositWhitelist(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        vm.prank(management);
+        strategy.setOpen(false);
+        assertEq(strategy.availableDepositLimit(user), 0, "!closed");
+
+        vm.prank(management);
+        strategy.setAllowed(user, true);
+        assertGt(strategy.availableDepositLimit(user), 0, "!allowed");
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+        assertEq(strategy.totalAssets(), _amount);
     }
 
     function test_constructor_sanityChecks() public {

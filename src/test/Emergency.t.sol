@@ -124,6 +124,29 @@ contract EmergencyTest is Setup {
         assertGt(profit, 0);
     }
 
+    // An unsold lot is repriced together with the new one
+    function test_kickAlAssetAuction_leftover(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+        kick();
+        uint256 bought = take();
+
+        // First lot goes unsold
+        vm.prank(management);
+        strategy.kickAlAssetAuction(bought / 2, 1e18, 0.95e18);
+        skip(1 days + 1);
+        assertFalse(alAssetAuction.isActive(address(alAsset)));
+
+        // Both halves are on sale at the new opening price
+        vm.prank(management);
+        strategy.kickAlAssetAuction(bought - bought / 2, 1e18, 0.95e18);
+        assertEq(alAssetAuction.available(address(alAsset)), bought, "!available");
+        assertApproxEq(alAssetAuction.price(address(alAsset)), 1e6, 1, "!opening price");
+    }
+
     function test_sweepAuction(
         uint256 _amount
     ) public {
