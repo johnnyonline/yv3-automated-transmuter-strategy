@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.21;
+pragma solidity 0.8.23;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -9,9 +9,10 @@ import {BaseHealthCheck, ERC20} from "@periphery/Bases/HealthCheck/BaseHealthChe
 import {Auction} from "@periphery/Auctions/Auction.sol";
 import {AuctionFactory} from "@periphery/Auctions/AuctionFactory.sol";
 
+import {IMYT} from "./interfaces/alchemix/IMYT.sol";
 import {ITransmuter} from "./interfaces/alchemix/ITransmuter.sol";
 import {IAlchemistV3} from "./interfaces/alchemix/IAlchemistV3.sol";
-import {MYTLimitsLib, IMYT} from "./periphery/MYTLimitsLib.sol";
+import {MYTLimitsLib} from "./periphery/MYTLimitsLib.sol";
 
 contract AutomatedTransmuterStrategy is BaseHealthCheck {
 
@@ -183,9 +184,8 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         uint256 _alAssetPrice = _WAD * _WAD / minimumPrice;
 
         // Idle alAsset, here and in the alAsset auction
-        uint256 _alValue = (
-            AL_ASSET.balanceOf(address(this)) + AL_ASSET.balanceOf(address(AL_ASSET_AUCTION))
-        ) * _alAssetPrice / _WAD;
+        uint256 _alValue =
+            (AL_ASSET.balanceOf(address(this)) + AL_ASSET.balanceOf(address(AL_ASSET_AUCTION))) * _alAssetPrice / _WAD;
 
         // Positions: transmuted part at par minus fee, the rest at the price it was opened at
         uint256 _fee = TRANSMUTER.transmutationFee();
@@ -199,9 +199,8 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
                     Math.Rounding.Up
                 )
                 : 0;
-            _alValue +=
-                (_position.amount - _untransmuted) * (MAX_BPS - _fee) / MAX_BPS +
-                _untransmuted * positions[_i].price / _WAD;
+            _alValue += (_position.amount - _untransmuted) * (MAX_BPS - _fee) / MAX_BPS + _untransmuted
+                * positions[_i].price / _WAD;
         }
 
         // Scale down on bad debt and convert to `asset` decimals
@@ -217,10 +216,8 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
 
         // What's already waiting for that room: asset here and in its auction,
         // alAsset here and in its auction
-        uint256 _queued =
-            asset.balanceOf(address(this)) +
-            asset.balanceOf(address(ASSET_AUCTION)) +
-            (AL_ASSET.balanceOf(address(this)) + AL_ASSET.balanceOf(address(AL_ASSET_AUCTION))) / AL_TO_ASSET_SCALER;
+        uint256 _queued = asset.balanceOf(address(this)) + asset.balanceOf(address(ASSET_AUCTION))
+            + (AL_ASSET.balanceOf(address(this)) + AL_ASSET.balanceOf(address(AL_ASSET_AUCTION))) / AL_TO_ASSET_SCALER;
 
         return _queued < _headroom ? _headroom - _queued : 0;
     }
@@ -255,13 +252,17 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     /// @notice Set the max number of open positions
     /// @dev Bounds the gas of the loops over `positions`
     /// @param _maxPositions Max number of open positions
-    function setMaxPositions(uint16 _maxPositions) external onlyManagement {
+    function setMaxPositions(
+        uint16 _maxPositions
+    ) external onlyManagement {
         maxPositions = _maxPositions;
     }
 
     /// @notice Set the min idle alAsset to open a new position
     /// @param _minRedemptionAmount Min amount of alAsset
-    function setMinRedemptionAmount(uint96 _minRedemptionAmount) external onlyManagement {
+    function setMinRedemptionAmount(
+        uint96 _minRedemptionAmount
+    ) external onlyManagement {
         minRedemptionAmount = _minRedemptionAmount;
     }
 
@@ -279,13 +280,17 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
 
     /// @notice Set the max base fee for keeper tends and kicks
     /// @param _maxTendBasefee Max base fee in wei
-    function setMaxTendBasefee(uint64 _maxTendBasefee) external onlyManagement {
+    function setMaxTendBasefee(
+        uint64 _maxTendBasefee
+    ) external onlyManagement {
         maxTendBasefee = _maxTendBasefee;
     }
 
     /// @notice Set the cooldown after an auction that wasn't fully taken
     /// @param _kickCooldown Cooldown in seconds, 0 for none
-    function setKickCooldown(uint32 _kickCooldown) external onlyManagement {
+    function setKickCooldown(
+        uint32 _kickCooldown
+    ) external onlyManagement {
         kickCooldown = _kickCooldown;
     }
 
@@ -293,7 +298,10 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     /// @dev The floor is also the price untransmuted alAsset is valued at. Applies from the next kick
     /// @param _startingPricePerUnit Opening price in alAsset per `asset`, WAD scaled
     /// @param _minimumPrice Price floor in alAsset per `asset`, WAD scaled, above par
-    function setAuctionPrices(uint96 _startingPricePerUnit, uint96 _minimumPrice) external onlyManagement {
+    function setAuctionPrices(
+        uint96 _startingPricePerUnit,
+        uint96 _minimumPrice
+    ) external onlyManagement {
         require(_minimumPrice > _WAD && _startingPricePerUnit > _minimumPrice, "!price");
         startingPricePerUnit = _startingPricePerUnit;
         minimumPrice = _minimumPrice;
@@ -316,14 +324,13 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     /// @notice Sweep a stray token to management
     /// @dev Can't sweep `asset`, alAsset, or MYT
     /// @param _token Token to sweep, can't be `asset`, alAsset or MYT
-    function sweep(address _token) external onlyManagement {
+    function sweep(
+        address _token
+    ) external onlyManagement {
         require(_token != address(asset), "!asset");
         require(_token != address(AL_ASSET), "!alAsset");
         require(_token != address(MYT), "!myt");
-        ERC20(_token).safeTransfer(
-            TokenizedStrategy.management(),
-            ERC20(_token).balanceOf(address(this))
-        );
+        ERC20(_token).safeTransfer(TokenizedStrategy.management(), ERC20(_token).balanceOf(address(this)));
     }
 
     // ===============================================================
@@ -334,7 +341,9 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     /// @dev Pays the transmuted part as MYT (minus transmutationFee) and returns
     /// the untransmuted part as alAsset (minus exitFee)
     /// @param _index Index of the position in the ladder to claim
-    function manualClaim(uint256 _index) external onlyEmergencyAuthorized {
+    function manualClaim(
+        uint256 _index
+    ) external onlyEmergencyAuthorized {
         // Claim, matured part as MYT, rest as alAsset
         TRANSMUTER.claimRedemption(positions[_index].id);
 
@@ -346,7 +355,9 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     /// @notice Redeem MYT for `asset`
     /// @dev Escape hatch for if the liquidity estimate in `_freeFunds()` is off
     /// @param _shares Amount of MYT to redeem
-    function manualRedeemMYT(uint256 _shares) external onlyEmergencyAuthorized {
+    function manualRedeemMYT(
+        uint256 _shares
+    ) external onlyEmergencyAuthorized {
         MYT.redeem(_shares, address(this), address(this));
     }
 
@@ -364,11 +375,9 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         require(_minimumPrice != 0 && _startingPricePerUnit > _minimumPrice, "!price");
 
         // Price the lot. `startingPrice` is the whole lot in whole tokens
-        (, uint64 _scaler, ) = AL_ASSET_AUCTION.auctions(address(AL_ASSET));
+        (, uint64 _scaler,) = AL_ASSET_AUCTION.auctions(address(AL_ASSET));
         AL_ASSET_AUCTION.setMinimumPrice(_minimumPrice);
-        AL_ASSET_AUCTION.setStartingPrice(
-            Math.mulDiv(_startingPricePerUnit, _amount * _scaler, _WAD * _WAD, Math.Rounding.Up)
-        );
+        AL_ASSET_AUCTION.setStartingPrice(Math.mulDiv(_startingPricePerUnit, _amount * _scaler, _WAD, Math.Rounding.Up));
 
         // Fund and kick
         AL_ASSET.safeTransfer(address(AL_ASSET_AUCTION), _amount);
@@ -378,7 +387,9 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     /// @notice Pull the lot back from an auction and end it if live
     /// @dev Abort a mispriced or unwanted auction. Unsold alAsset has no other way back
     /// @param _alAssetAuction True for the alAsset auction, false for the asset auction
-    function sweepAuction(bool _alAssetAuction) external onlyEmergencyAuthorized {
+    function sweepAuction(
+        bool _alAssetAuction
+    ) external onlyEmergencyAuthorized {
         Auction _auction = _alAssetAuction ? AL_ASSET_AUCTION : ASSET_AUCTION;
         ERC20 _token = _alAssetAuction ? AL_ASSET : asset;
 
@@ -398,7 +409,9 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     /// @dev Reverts while an auction is live or nothing is kickable
     /// @param _from Token to sell, must be `asset`
     /// @return _available Amount of `asset` put up for auction
-    function kickAuction(address _from) external onlyKeepers returns (uint256 _available) {
+    function kickAuction(
+        address _from
+    ) external onlyKeepers returns (uint256 _available) {
         require(_from == address(asset), "!asset");
 
         // How much to sell
@@ -409,11 +422,9 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         if (asset.balanceOf(address(ASSET_AUCTION)) != 0) ASSET_AUCTION.sweep(address(asset));
 
         // Price the lot. `startingPrice` is the whole lot in whole tokens
-        (, uint64 _scaler, ) = ASSET_AUCTION.auctions(_from);
+        (, uint64 _scaler,) = ASSET_AUCTION.auctions(_from);
         ASSET_AUCTION.setMinimumPrice(minimumPrice);
-        ASSET_AUCTION.setStartingPrice(
-            Math.mulDiv(startingPricePerUnit, _available * _scaler, _WAD * _WAD, Math.Rounding.Up)
-        );
+        ASSET_AUCTION.setStartingPrice(Math.mulDiv(startingPricePerUnit, _available * _scaler, _WAD, Math.Rounding.Up));
 
         // Fund and kick
         asset.safeTransfer(address(ASSET_AUCTION), _available);
@@ -425,12 +436,16 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     // ===============================================================
 
     /// @inheritdoc BaseStrategy
-    function _deployFunds(uint256 /*_amount*/) internal override {
+    function _deployFunds(
+        uint256 /*_amount*/
+    ) internal override {
         // Do nothing. Idle assets gets auctioned for alAsset in `_tend()`
     }
 
     /// @inheritdoc BaseStrategy
-    function _freeFunds(uint256 /*_amount*/) internal override {
+    function _freeFunds(
+        uint256 /*_amount*/
+    ) internal override {
         // Sweep idle assets from an expired auction. Never touches a live one
         if (!ASSET_AUCTION.isActive(address(asset)) && asset.balanceOf(address(ASSET_AUCTION)) != 0) {
             ASSET_AUCTION.sweep(address(asset));
@@ -460,13 +475,9 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     }
 
     /// @inheritdoc BaseStrategy
-    function _harvestAndReport() internal override returns (uint256) {
-        // Accounting only. All position maintenance happens in `_tend()`
-        return estimatedTotalAssets();
-    }
-
-    /// @inheritdoc BaseStrategy
-    function _tend(uint256 /*_totalIdle*/) internal override {
+    function _tend(
+        uint256 /*_totalIdle*/
+    ) internal override {
         // Sweep idle assets from auction, claim matured positions, and redeem MYTs
         _freeFunds(0);
 
@@ -486,7 +497,9 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     }
 
     /// @inheritdoc BaseStrategy
-    function _emergencyWithdraw(uint256 /*_amount*/) internal override {
+    function _emergencyWithdraw(
+        uint256 /*_amount*/
+    ) internal override {
         // Sweep idle assets from auction, claim matured positions, and redeem MYTs
         _freeFunds(0);
     }
@@ -496,6 +509,12 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     // ===============================================================
 
     /// @inheritdoc BaseStrategy
+    function _harvestAndReport() internal view override returns (uint256) {
+        // Accounting only. All position maintenance happens in `_tend()`
+        return estimatedTotalAssets();
+    }
+
+    /// @inheritdoc BaseStrategy
     function _tendTrigger() internal view override returns (bool) {
         if (TokenizedStrategy.totalAssets() == 0) return false;
 
@@ -503,8 +522,9 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         if (block.basefee >= maxTendBasefee) return false;
 
         // A matured position should be claimed immediately to reduce exposure
-        for (uint256 _i; _i < positions.length; ++_i)
+        for (uint256 _i; _i < positions.length; ++_i) {
             if (TRANSMUTER.getPosition(positions[_i].id).maturationBlock <= block.number) return true;
+        }
 
         // MYT stuck from a previously failed withdrawal has liquidity again
         if (MYT.availableWithdrawLimit() > _DUST_AMOUNT) return true;
@@ -523,30 +543,27 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         if (ASSET_AUCTION.isActive(address(asset))) return 0;
 
         // Wait the cooldown
-        (uint64 _kicked, , ) = ASSET_AUCTION.auctions(address(asset));
+        (uint64 _kicked,,) = ASSET_AUCTION.auctions(address(asset));
         if (block.timestamp < _kicked + kickCooldown) return 0;
 
         // Check the ladder isn't full
         if (positions.length >= maxPositions) return 0;
 
         // Idle assets, capped by `maxAuctionAmount`
-        uint256 _amount = Math.min(
-            asset.balanceOf(address(this)) + asset.balanceOf(address(ASSET_AUCTION)),
-            maxAuctionAmount
-        );
+        uint256 _amount =
+            Math.min(asset.balanceOf(address(this)) + asset.balanceOf(address(ASSET_AUCTION)), maxAuctionAmount);
 
         // Kickable is the idle amount if above `minAuctionAmount`, else 0
         return _amount < minAuctionAmount ? 0 : _amount;
     }
-
 
     /// @notice Multiplier the transmuter applies to claims when the alchemist has bad debt
     /// @dev Mirrors the transmuter's `badDebtRatio` math
     /// @return WAD scaled multiplier, 1e18 when fully backed
     function _badDebtMultiplier() internal view returns (uint256) {
         // Underlying backing the synthetics: locked collateral plus the transmuter's MYT
-        uint256 _backing = ALCHEMIST.getTotalLockedUnderlyingValue() +
-            ALCHEMIST.convertYieldTokensToUnderlying(MYT.balanceOf(address(TRANSMUTER)));
+        uint256 _backing = ALCHEMIST.getTotalLockedUnderlyingValue()
+            + ALCHEMIST.convertYieldTokensToUnderlying(MYT.balanceOf(address(TRANSMUTER)));
         if (_backing == 0) return 0;
 
         // Synthetics issued per unit of backing, rounded up like the transmuter does
@@ -586,4 +603,5 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         uint256 _amount = Math.min(AL_ASSET.balanceOf(address(this)), _transmuterHeadroom());
         return _amount < minRedemptionAmount ? 0 : _amount;
     }
+
 }

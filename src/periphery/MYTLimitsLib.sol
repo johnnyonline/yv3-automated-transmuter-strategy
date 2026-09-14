@@ -1,46 +1,57 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.18;
+pragma solidity 0.8.23;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-/// @dev Alchemix's MYT yield token: a Morpho Vault V2.
-interface IMYT is IERC4626 {
-    function liquidityAdapter() external view returns (address);
-    function canSendShares(address account) external view returns (bool);
-    function canReceiveAssets(address account) external view returns (bool);
-}
+import {IMYT} from "../interfaces/alchemix/IMYT.sol";
+import {IMYTStrategy} from "../interfaces/alchemix/IMYTStrategy.sol";
 
-interface IMYTStrategyLike {
-    function realAssets() external view returns (uint256);
-}
-
-/// @dev Withdraw sizing for MYT, whose `maxRedeem` always returns 0. Liquidity
-/// is the vault's idle asset plus whatever its liquidity adapter holds.
+/// @notice Withdraw sizing for MYT, whose `maxRedeem` always returns 0
+/// @dev Adapted from tapired/tokenized-morpho-vaultv2-lender `MorphoVaultV2Limits.sol`.
+/// Exact for Alchemix's `ERC4626Strategy` adapter, `realAssets()` for any other
 library MYTLimitsLib {
-    /// @dev Assets the vault can pay out right now for the shares the caller holds.
-    function availableWithdrawLimit(IMYT vault) internal view returns (uint256) {
-        uint256 balance = vault.balanceOf(address(this));
-        if (balance == 0) return 0;
-        return availableWithdrawLimit(vault, vault.convertToAssets(balance));
+
+    /// @notice Assets the vault can pay out right now for the caller's shares
+    /// @param _vault The MYT vault
+    /// @return Amount of `asset`
+    function availableWithdrawLimit(
+        IMYT _vault
+    ) internal view returns (uint256) {
+        uint256 _balance = _vault.balanceOf(address(this));
+        if (_balance == 0) return 0;
+        return availableWithdrawLimit(_vault, _vault.convertToAssets(_balance));
     }
 
-    /// @dev `vaultClaim` bounded by what the vault can pay out right now.
-    function availableWithdrawLimit(IMYT vault, uint256 vaultClaim) internal view returns (uint256) {
-        if (vaultClaim == 0) return 0;
-        if (!vault.canSendShares(address(this))) return 0;
-        if (!vault.canReceiveAssets(address(this))) return 0;
+    /// @notice `_vaultClaim` bounded by what the vault can pay out right now
+    /// @param _vault The MYT vault
+    /// @param _vaultClaim The caller's claim on the vault, in `asset`
+    /// @return Amount of `asset`
+    function availableWithdrawLimit(
+        IMYT _vault,
+        uint256 _vaultClaim
+    ) internal view returns (uint256) {
+        if (_vaultClaim == 0) return 0;
 
-        uint256 liquid = IERC20(vault.asset()).balanceOf(address(vault));
+        // Transfer gates
+        if (!_vault.canSendShares(address(this)) || !_vault.canReceiveAssets(address(this))) return 0;
 
-        address adapter = vault.liquidityAdapter();
-        if (adapter != address(0)) {
-            try IMYTStrategyLike(adapter).realAssets() returns (uint256 adapterAssets) {
-                liquid += adapterAssets;
-            } catch {}
+        // Idle asset in the vault
+        uint256 _liquid = IERC20(_vault.asset()).balanceOf(address(_vault));
+
+        // Plus what the liquidity adapter can pull from its underlying vault. The
+        // allocator can switch adapters at any time, so don't revert on one without
+        address _adapter = _vault.liquidityAdapter();
+        if (_adapter != address(0)) {
+            try IMYTStrategy(_adapter).vault() returns (address _underlying) {
+                _liquid += IERC4626(_underlying).maxWithdraw(_adapter);
+            } catch {
+                _liquid += IMYTStrategy(_adapter).realAssets();
+            }
         }
 
-        return Math.min(vaultClaim, liquid);
+        return Math.min(_vaultClaim, _liquid);
     }
+
 }

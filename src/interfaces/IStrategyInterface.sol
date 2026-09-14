@@ -4,11 +4,14 @@ pragma solidity ^0.8.18;
 import {IStrategy} from "@tokenized-strategy/interfaces/IStrategy.sol";
 
 interface IStrategyInterface is IStrategy {
+
     // ===============================================================
     // Views
     // ===============================================================
 
-    function positions(uint256 _index) external view returns (uint128 id, uint128 price);
+    function positions(
+        uint256 _index
+    ) external view returns (uint128 id, uint128 price);
 
     function positionCount() external view returns (uint256);
 
@@ -50,35 +53,70 @@ interface IStrategyInterface is IStrategy {
     // Management
     // ===============================================================
 
-    function setMaxPositions(uint16 _maxPositions) external;
+    function setMaxPositions(
+        uint16 _maxPositions
+    ) external;
 
-    function setMinRedemptionAmount(uint96 _minRedemptionAmount) external;
+    function setMinRedemptionAmount(
+        uint96 _minRedemptionAmount
+    ) external;
 
-    function setAuctionAmounts(uint96 _minAuctionAmount, uint96 _maxAuctionAmount) external;
+    function setAuctionAmounts(
+        uint96 _minAuctionAmount,
+        uint96 _maxAuctionAmount
+    ) external;
 
-    function setMaxTendBasefee(uint64 _maxTendBasefee) external;
+    function setMaxTendBasefee(
+        uint64 _maxTendBasefee
+    ) external;
 
-    function setKickCooldown(uint32 _kickCooldown) external;
+    function setKickCooldown(
+        uint32 _kickCooldown
+    ) external;
 
-    function setAuctionPrices(uint96 _startingPricePerUnit, uint96 _minimumPrice) external;
+    function setAuctionPrices(
+        uint96 _startingPricePerUnit,
+        uint96 _minimumPrice
+    ) external;
 
-    function setAuctionSteps(bool _alAssetAuction, uint256 _stepDecayRate, uint256 _stepDuration) external;
+    function setAuctionSteps(
+        bool _alAssetAuction,
+        uint256 _stepDecayRate,
+        uint256 _stepDuration
+    ) external;
 
-    function manualClaim(uint256 _index) external;
+    function manualClaim(
+        uint256 _index
+    ) external;
 
-    function manualRedeemMYT(uint256 _shares) external;
+    function manualRedeemMYT(
+        uint256 _shares
+    ) external;
 
-    function kickAlAssetAuction(uint256 _amount, uint256 _startingPricePerUnit, uint256 _minimumPrice) external;
+    function kickAlAssetAuction(
+        uint256 _amount,
+        uint256 _startingPricePerUnit,
+        uint256 _minimumPrice
+    ) external;
 
-    function sweepAuction(bool _alAssetAuction) external;
+    function sweepAuction(
+        bool _alAssetAuction
+    ) external;
 
-    function sweep(address _token) external;
+    function sweep(
+        address _token
+    ) external;
 
     // ===============================================================
     // Auction (external Yearn Auction clones governed by the strategy)
     // ===============================================================
 
-    function kickAuction(address _from) external returns (uint256);
+    function kickAuction(
+        address _from
+    ) external returns (uint256);
 
-    function auctionTrigger(address _from) external view returns (bool, bytes memory);
+    function auctionTrigger(
+        address _from
+    ) external view returns (bool, bytes memory);
+
 }

@@ -1,11 +1,12 @@
-pragma solidity ^0.8.18;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.21;
 
-import "forge-std/console2.sol";
-import {Setup} from "./utils/Setup.sol";
+import {Setup, ITransmuter} from "./utils/Setup.sol";
 
 import {StrategyAprOracle} from "../periphery/StrategyAprOracle.sol";
 
 contract OracleTest is Setup {
+
     StrategyAprOracle public oracle;
 
     function setUp() public override {
@@ -13,51 +14,70 @@ contract OracleTest is Setup {
         oracle = new StrategyAprOracle();
     }
 
-    function checkOracle(address _strategy, uint256 _delta) public {
-        // Check set up
-        // TODO: Add checks for the setup
-
-        uint256 currentApr = oracle.aprAfterDebtChange(_strategy, 0);
-
-        // Should be greater than 0 but likely less than 100%
-        assertGt(currentApr, 0, "ZERO");
-        assertLt(currentApr, 1e18, "+100%");
-
-        // TODO: Uncomment to test the apr goes up and down based on debt changes
-        /**
-        uint256 negativeDebtChangeApr = oracle.aprAfterDebtChange(_strategy, -int256(_delta));
-
-        // The apr should go up if deposits go down
-        assertLt(currentApr, negativeDebtChangeApr, "negative change");
-
-        uint256 positiveDebtChangeApr = oracle.aprAfterDebtChange(_strategy, int256(_delta));
-
-        assertGt(currentApr, positiveDebtChangeApr, "positive change");
-        */
-
-        // TODO: Uncomment if there are setter functions to test.
-        /**
-        vm.expectRevert("!governance");
-        vm.prank(user);
-        oracle.setterFunction(setterVariable);
-
-        vm.prank(management);
-        oracle.setterFunction(setterVariable);
-
-        assertEq(oracle.setterVariable(), setterVariable);
-        */
+    // APR of a position opened at the current floor
+    function grossApr() public view returns (uint256) {
+        uint256 par = WAD * (MAX_BPS - transmuter.transmutationFee()) / MAX_BPS;
+        uint256 cycleReturn = strategy.minimumPrice() * par / WAD - WAD;
+        return cycleReturn * 365 days / (timeToTransmute * 12);
     }
 
-    function test_oracle(uint256 _amount, uint16 _percentChange) public {
+    function test_oracle(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
-        _percentChange = uint16(bound(uint256(_percentChange), 10, MAX_BPS));
 
+        // Idle asset earns nothing
         mintAndDepositIntoStrategy(strategy, user, _amount);
+        assertEq(oracle.aprAfterDebtChange(address(strategy), 0), 0, "!idle");
 
-        uint256 _delta = (_amount * _percentChange) / MAX_BPS;
+        // Idle alAsset is priced as if opened at the floor
+        kick();
+        take();
+        uint256 apr = oracle.aprAfterDebtChange(address(strategy), 0);
+        assertApproxEq(apr, grossApr(), 1e12, "!idle alAsset");
 
-        checkOracle(address(strategy), _delta);
+        // Same once it is transmuting
+        tend();
+        apr = oracle.aprAfterDebtChange(address(strategy), 0);
+        assertApproxEq(apr, grossApr(), 1e12, "!apr");
+        assertGt(apr, 0, "ZERO");
+        assertLt(apr, 1e18, "+100%");
+
+        // New idle asset dilutes
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+        assertLt(oracle.aprAfterDebtChange(address(strategy), 0), apr, "!diluted");
+
+        // A fee eating the whole discount means no yield
+        vm.mockCall(
+            address(transmuter), abi.encodeWithSelector(ITransmuter.transmutationFee.selector), abi.encode(1_000)
+        );
+        assertEq(oracle.aprAfterDebtChange(address(strategy), 0), 0, "!fee");
+        vm.clearMockedCalls();
+
+        // A matured position has nothing left to earn
+        mature();
+        assertEq(oracle.aprAfterDebtChange(address(strategy), 0), 0, "!matured");
     }
 
-    // TODO: Deploy multiple strategies with different tokens as `asset` to test against the oracle.
+    // Each position earns from the floor it was opened at
+    function test_oracle_positionPrices(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        buyAndTransmute(_amount);
+        uint256 low = oracle.aprAfterDebtChange(address(strategy), 0);
+
+        // Second position at a deeper discount
+        vm.prank(management);
+        strategy.setAuctionPrices(1.3e18, 1.2e18);
+        skip(1 days);
+        buyAndTransmute(_amount);
+        uint256 high = grossApr();
+
+        uint256 blended = oracle.aprAfterDebtChange(address(strategy), 0);
+        assertGt(blended, low, "!above low");
+        assertLt(blended, high, "!below high");
+    }
+
 }
