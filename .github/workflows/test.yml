@@ -24,6 +24,9 @@ jobs:
         with:
           version: nightly
 
+      - name: Create .env file
+        run: echo "ETH_RPC_URL=${{ secrets.ETH_RPC_URL }}" > .env
+
       - name: Run Forge build
         run: |
           forge --version

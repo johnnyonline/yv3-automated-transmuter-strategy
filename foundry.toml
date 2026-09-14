@@ -4,6 +4,8 @@ out = 'out'
 libs = ['lib']
 solc = "0.8.23"
 evm_version = "cancun" # MYT (Morpho Vault V2) uses transient storage
+optimizer = true
+optimizer_runs = 200
 
 remappings = [
     "@openzeppelin/=lib/openzeppelin-contracts/",
