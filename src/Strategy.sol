@@ -243,7 +243,7 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         // Matured positions pay MYT, so they and MYT already held are bounded
         // by what the MYT vault can pay out right now
         uint256 _myt = MYT.convertToAssets(MYT.balanceOf(address(this)));
-        return _idle + MYT.availableWithdrawLimit(_matured + _myt);
+        return _idle + Math.min(_matured + _myt, MYT.availableLiquidity());
     }
 
     // ===============================================================
@@ -472,11 +472,10 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         // Redeem all MYT back into asset, sized by the vault's real liquidity
         // since Morpho V2's maxRedeem always returns 0. Reverts are swallowed.
         // The MYT stays idle for a later attempt and is priced into totalAssets
-        uint256 _maxAssets = MYT.availableWithdrawLimit();
-        if (_maxAssets != 0) {
-            uint256 _shares = Math.min(MYT.balanceOf(address(this)), MYT.convertToShares(_maxAssets));
-            if (_shares != 0) try MYT.redeem(_shares, address(this), address(this)) {} catch {}
-        }
+        uint256 _balance = MYT.balanceOf(address(this));
+        if (_balance == 0) return;
+        uint256 _shares = Math.min(_balance, MYT.convertToShares(MYT.availableLiquidity()));
+        if (_shares != 0) try MYT.redeem(_shares, address(this), address(this)) {} catch {}
     }
 
     /// @inheritdoc BaseStrategy
@@ -532,7 +531,8 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         }
 
         // MYT stuck from a previously failed withdrawal has liquidity again
-        if (MYT.availableWithdrawLimit() > _DUST_AMOUNT) return true;
+        uint256 _myt = MYT.convertToAssets(MYT.balanceOf(address(this)));
+        if (_myt > _DUST_AMOUNT && MYT.availableLiquidity() > _DUST_AMOUNT) return true;
 
         // Idle alAsset ready to be transmuted
         return _transmutableAmount() != 0;
