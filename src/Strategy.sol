@@ -354,7 +354,8 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     }
 
     /// @notice Redeem MYT for `asset`
-    /// @dev Escape hatch for if the liquidity estimate in `_freeFunds()` is off
+    /// @dev Escape hatch for if the liquidity estimate in `_freeFunds()` is off. Proceeds
+    /// are idle `asset` and get kicked again unless shut down or `maxAuctionAmount` is 0
     /// @param _shares Amount of MYT to redeem
     function manualRedeemMYT(
         uint256 _shares
@@ -364,7 +365,8 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
 
     /// @notice Kick the alAsset auction, selling idle alAsset for `asset`
     /// @dev Emergency exit for alAsset that can't be transmuted. Reverts while a
-    /// previous alAsset auction is live
+    /// previous alAsset auction is live. Proceeds are idle `asset` and get kicked
+    /// again unless shut down or `maxAuctionAmount` is 0
     /// @param _amount Amount of alAsset to sell, on top of any unsold lot
     /// @param _startingPricePerUnit Opening price in `asset` per alAsset, WAD scaled
     /// @param _minimumPrice Price floor in `asset` per alAsset, WAD scaled
