@@ -599,7 +599,7 @@ contract OperationTest is Setup {
         assertEq(strategy.availableWithdrawLimit(user), 0, "!canReceiveAssets");
     }
 
-    // A liquidity adapter without `vault()` counts all of its assets instead
+    // A liquidity adapter without `vault()` counts as illiquid
     function test_availableWithdrawLimit_adapterFallback(
         uint256 _amount
     ) public {
@@ -610,12 +610,14 @@ contract OperationTest is Setup {
         uint256 limit = strategy.availableWithdrawLimit(user);
         assertGt(limit, 0);
 
+        // An unknown adapter counts as illiquid, only the vault's idle asset is left
         address adapter = myt.liquidityAdapter();
         vm.mockCallRevert(adapter, abi.encodeWithSelector(IMYTStrategy.vault.selector), "");
-        assertEq(strategy.availableWithdrawLimit(user), limit, "!fallback");
-
-        vm.mockCall(adapter, abi.encodeWithSelector(IMYTStrategy.realAssets.selector), abi.encode(1e6));
-        assertEq(strategy.availableWithdrawLimit(user), asset.balanceOf(address(myt)) + 1e6, "!realAssets");
+        assertEq(
+            strategy.availableWithdrawLimit(user),
+            asset.balanceOf(address(strategy)) + asset.balanceOf(address(myt)),
+            "!fallback"
+        );
     }
 
     // Deposits follow BaseHealthCheck's whitelist

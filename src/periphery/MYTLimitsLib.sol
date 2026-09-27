@@ -9,7 +9,7 @@ import {IMYTStrategy} from "../interfaces/alchemix/IMYTStrategy.sol";
 
 /// @notice Withdraw sizing for MYT, whose `maxRedeem` always returns 0
 /// @dev Adapted from tapired/tokenized-morpho-vaultv2-lender `MorphoVaultV2Limits.sol`.
-/// Exact for Alchemix's `ERC4626Strategy` adapter, `realAssets()` for any other
+/// Exact for Alchemix's `ERC4626Strategy` adapter, 0 for any other
 library MYTLimitsLib {
 
     /// @notice Assets the vault can pay out to the caller right now
@@ -25,14 +25,12 @@ library MYTLimitsLib {
         uint256 _liquid = IERC20(_vault.asset()).balanceOf(address(_vault));
 
         // Plus what the liquidity adapter can pull from its underlying vault. The
-        // allocator can switch adapters at any time, so don't revert on one without
+        // allocator can switch adapters at any time, an unknown one counts as illiquid
         address _adapter = _vault.liquidityAdapter();
         if (_adapter != address(0)) {
             try IMYTStrategy(_adapter).vault() returns (address _underlying) {
                 _liquid += IERC4626(_underlying).maxWithdraw(_adapter);
-            } catch {
-                _liquid += IMYTStrategy(_adapter).realAssets();
-            }
+            } catch {}
         }
 
         return _liquid;

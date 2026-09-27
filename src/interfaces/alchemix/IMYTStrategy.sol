@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.23;
 
-/// @notice An Alchemix MYT adapter. `realAssets()` is on every adapter, `vault()` only on `ERC4626Strategy`
+/// @notice Alchemix's `ERC4626Strategy`, the MYT liquidity adapter. Wraps an ERC4626 vault
 interface IMYTStrategy {
 
-    function realAssets() external view returns (uint256);
     function vault() external view returns (address);
 
 }
