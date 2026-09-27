@@ -35,7 +35,7 @@ contract OperationTest is Setup {
         assertEq(assetAuction.governance(), address(strategy));
         assertTrue(assetAuction.governanceOnlyKick());
         assertEq(assetAuction.stepDecayRate(), 1);
-        assertEq(assetAuction.stepDuration(), 3 minutes);
+        assertEq(assetAuction.stepDuration(), 1 minutes);
         assertEq(alAssetAuction.want(), address(asset));
         assertEq(alAssetAuction.receiver(), address(strategy));
         assertEq(alAssetAuction.governance(), address(strategy));
@@ -157,8 +157,8 @@ contract OperationTest is Setup {
         mintAndDepositIntoStrategy(strategy, user, _amount);
         kick();
 
-        // 20 hours in the price is ~1.105, just above the 1.1 floor
-        skip(20 hours);
+        // 400 minutes in the price is ~1.105, just above the 1.1 floor
+        skip(400 minutes);
         assertTrue(assetAuction.isActive(address(asset)));
         uint256 price = assetAuction.price(address(asset));
         assertGt(price, 1.1e18);

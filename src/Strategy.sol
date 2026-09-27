@@ -45,7 +45,7 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     uint96 public minimumPrice = 1.1e18;
 
     /// @notice Auction opening price in alAsset per `asset`, WAD scaled
-    /// @dev E.g. 1.15e18. Decays toward `minimumPrice` at ~4.7% per day, so
+    /// @dev E.g. 1.15e18. Decays toward `minimumPrice` at ~14% per day, so
     /// keep the range tight to limit profit booked at fill
     uint96 public startingPricePerUnit = 1.15e18;
 
@@ -70,10 +70,6 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
 
     /// @notice Redeemable MYT worth less `asset` than this is not worth a tend
     uint256 internal constant _DUST_AMOUNT = 1e6;
-
-    /// @notice Auction price decay: 1 bp every 3 minutes
-    uint256 internal constant _AUCTION_STEP_DECAY_RATE = 1;
-    uint256 internal constant _AUCTION_STEP_DURATION = 3 minutes; // @audit -- why 3 min? probably better like 3 blocks ish so like 1 min?
 
     /// @notice Divides alAsset amounts down to `asset` decimals
     uint256 public immutable AL_TO_ASSET_SCALER;
@@ -121,18 +117,21 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         AL_TO_ASSET_SCALER = 10 ** AL_ASSET.decimals() / ASSET_UNIT;
         require(AL_TO_ASSET_SCALER != 0, "!decimals");
 
-        // Both auctions pay this strategy and are governed by it
+        // Both auctions pay this strategy and are governed by it. Price decays 1 bp every minute
+        uint256 _stepDecayRate = 1;
+        uint256 _stepDuration = 1 minutes;
+
         ASSET_AUCTION = Auction(_AUCTION_FACTORY.createNewAuction(_alAsset));
         ASSET_AUCTION.enable(_asset);
         ASSET_AUCTION.setGovernanceOnlyKick(true);
-        ASSET_AUCTION.setStepDecayRate(_AUCTION_STEP_DECAY_RATE);
-        ASSET_AUCTION.setStepDuration(_AUCTION_STEP_DURATION);
+        ASSET_AUCTION.setStepDecayRate(_stepDecayRate);
+        ASSET_AUCTION.setStepDuration(_stepDuration);
 
         AL_ASSET_AUCTION = Auction(_AUCTION_FACTORY.createNewAuction(_asset));
         AL_ASSET_AUCTION.enable(_alAsset);
         AL_ASSET_AUCTION.setGovernanceOnlyKick(true);
-        AL_ASSET_AUCTION.setStepDecayRate(_AUCTION_STEP_DECAY_RATE);
-        AL_ASSET_AUCTION.setStepDuration(_AUCTION_STEP_DURATION);
+        AL_ASSET_AUCTION.setStepDecayRate(_stepDecayRate);
+        AL_ASSET_AUCTION.setStepDuration(_stepDuration);
 
         // Let the transmuter pull alAsset for new positions
         AL_ASSET.forceApprove(_transmuter, type(uint256).max);
