@@ -230,14 +230,17 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         uint256 _idle = asset.balanceOf(address(this));
         if (!ASSET_AUCTION.isActive(address(asset))) _idle += asset.balanceOf(address(ASSET_AUCTION));
 
-        // Matured positions at face. The transmutation fee and any bad debt
-        // haircut come out of what's freed and land on the withdrawer as loss
+        // Matured positions at what a claim pays: par minus the transmutation fee,
+        // scaled down on bad debt
         uint256 _matured;
         for (uint256 _i; _i < positions.length; ++_i) {
             ITransmuter.StakingPosition memory _position = TRANSMUTER.getPosition(positions[_i].id);
             if (_position.maturationBlock <= block.number) _matured += _position.amount;
         }
-        _matured /= AL_TO_ASSET_SCALER;
+        if (_matured != 0) {
+            _matured = _matured * (MAX_BPS - TRANSMUTER.transmutationFee()) / MAX_BPS * _badDebtMultiplier() / _WAD
+                / AL_TO_ASSET_SCALER;
+        }
 
         // Matured positions pay MYT, so they and MYT already held are bounded
         // by what the MYT vault can pay out right now

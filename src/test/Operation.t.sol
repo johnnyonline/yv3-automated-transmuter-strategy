@@ -4,6 +4,7 @@ pragma solidity ^0.8.21;
 import "forge-std/console2.sol";
 import {Setup, ERC20, IStrategyInterface, ITransmuter, Strategy} from "./utils/Setup.sol";
 import {IMYTStrategy} from "../interfaces/alchemix/IMYTStrategy.sol";
+import {IAlchemistV3} from "../interfaces/alchemix/IAlchemistV3.sol";
 
 contract OperationTest is Setup {
 
@@ -265,6 +266,34 @@ contract OperationTest is Setup {
         strategy.redeem(_amount, user, user);
         assertEq(asset.balanceOf(user), balanceBefore + _amount, "!final balance");
         assertEq(asset.balanceOf(address(assetAuction)), 0);
+    }
+
+    // Matured positions count at what a claim pays, not at face
+    function test_availableWithdrawLimit_haircuts(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        buyAndTransmute(_amount);
+        mature();
+        (uint128 id,) = strategy.positions(0);
+        uint256 face = transmuter.getPosition(id).amount / 1e12;
+        assertEq(strategy.availableWithdrawLimit(user), face, "!face");
+
+        // Transmutation fee
+        vm.mockCall(
+            address(transmuter), abi.encodeWithSelector(ITransmuter.transmutationFee.selector), abi.encode(1_000)
+        );
+        assertApproxEq(strategy.availableWithdrawLimit(user), face * 9_000 / MAX_BPS, 1, "!fee");
+        vm.clearMockedCalls();
+
+        // Bad debt
+        address alchemist = strategy.ALCHEMIST();
+        uint256 issued = IAlchemistV3(alchemist).totalSyntheticsIssued();
+        vm.mockCall(
+            alchemist, abi.encodeWithSelector(IAlchemistV3.totalSyntheticsIssued.selector), abi.encode(issued * 10)
+        );
+        assertLt(strategy.availableWithdrawLimit(user), face, "!bad debt");
     }
 
     // Withdrawing while positions are immature only pays idle asset
