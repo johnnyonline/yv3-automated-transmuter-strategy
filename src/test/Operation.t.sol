@@ -7,6 +7,7 @@ import {IMYTStrategy} from "../interfaces/alchemix/IMYTStrategy.sol";
 import {IAlchemistV3} from "../interfaces/alchemix/IAlchemistV3.sol";
 import {IMYTLimits} from "../interfaces/IMYTLimits.sol";
 import {MYTLimits} from "../periphery/MYTLimits.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 contract OperationTest is Setup {
 
@@ -682,12 +683,15 @@ contract OperationTest is Setup {
 
         // An unknown adapter counts as illiquid, only the vault's idle asset is left
         address adapter = myt.liquidityAdapter();
+        uint256 idle = asset.balanceOf(address(strategy)) + asset.balanceOf(address(myt));
         vm.mockCallRevert(adapter, abi.encodeWithSelector(IMYTStrategy.vault.selector), "");
-        assertEq(
-            strategy.availableWithdrawLimit(user),
-            asset.balanceOf(address(strategy)) + asset.balanceOf(address(myt)),
-            "!fallback"
-        );
+        assertEq(strategy.availableWithdrawLimit(user), idle, "!fallback");
+        vm.clearMockedCalls();
+
+        // Same for an adapter whose vault can't quote
+        address underlying = IMYTStrategy(adapter).vault();
+        vm.mockCallRevert(underlying, abi.encodeWithSelector(IERC4626.maxWithdraw.selector), "");
+        assertEq(strategy.availableWithdrawLimit(user), idle, "!maxWithdraw");
     }
 
     // A failed MYT redeem reverts instead of booking a loss

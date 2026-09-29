@@ -37,7 +37,9 @@ contract MYTLimits is IMYTLimits {
         address _adapter = MYT.liquidityAdapter();
         if (_adapter != address(0)) {
             try IMYTStrategy(_adapter).vault() returns (address _underlying) {
-                _liquid += IERC4626(_underlying).maxWithdraw(_adapter);
+                try IERC4626(_underlying).maxWithdraw(_adapter) returns (uint256 _max) {
+                    _liquid += _max;
+                } catch {}
             } catch {}
         }
 
