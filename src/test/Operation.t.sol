@@ -620,6 +620,30 @@ contract OperationTest is Setup {
         );
     }
 
+    // A failed MYT redeem reverts instead of booking a loss
+    function test_withdraw_stuckMYT(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        buyAndTransmute(_amount);
+        mature();
+        uint256 shares = strategy.maxRedeem(user);
+        assertGt(shares, 0);
+
+        vm.mockCallRevert(address(myt), abi.encodeWithSelector(myt.redeem.selector), "");
+        vm.expectRevert();
+        vm.prank(user);
+        strategy.redeem(shares, user, user);
+        vm.expectRevert();
+        tend();
+
+        vm.clearMockedCalls();
+        tend();
+        assertEq(strategy.positionCount(), 0);
+        assertLt(myt.convertToAssets(myt.balanceOf(address(strategy))), 10, "!redeemed");
+    }
+
     // Deposits follow BaseHealthCheck's whitelist
     function test_depositWhitelist(
         uint256 _amount

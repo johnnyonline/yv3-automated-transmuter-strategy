@@ -471,12 +471,12 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         }
 
         // Redeem all MYT back into asset, sized by the vault's real liquidity
-        // since Morpho V2's maxRedeem always returns 0. Reverts are swallowed.
-        // The MYT stays idle for a later attempt and is priced into totalAssets
+        // since Morpho V2's maxRedeem always returns 0. Illiquidity is not a loss,
+        // so a failed redeem reverts
         uint256 _balance = MYT.balanceOf(address(this));
         if (_balance == 0) return;
         uint256 _shares = Math.min(_balance, MYT.convertToShares(MYT.availableLiquidity()));
-        if (_shares != 0) try MYT.redeem(_shares, address(this), address(this)) {} catch {}
+        if (_shares != 0) MYT.redeem(_shares, address(this), address(this));
     }
 
     /// @inheritdoc BaseStrategy
