@@ -326,14 +326,15 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
     }
 
     /// @notice Sweep a stray token to management
-    /// @dev Can't sweep `asset`, alAsset, or MYT
-    /// @param _token Token to sweep, can't be `asset`, alAsset or MYT
+    /// @dev Can't sweep `asset`, alAsset, MYT, or the strategy's own shares
+    /// @param _token Token to sweep
     function sweep(
         address _token
     ) external onlyManagement {
         require(_token != address(asset), "!asset");
         require(_token != address(AL_ASSET), "!alAsset");
         require(_token != address(MYT), "!myt");
+        require(_token != address(this), "!self");
         ERC20(_token).safeTransfer(TokenizedStrategy.management(), ERC20(_token).balanceOf(address(this)));
     }
 

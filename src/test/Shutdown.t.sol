@@ -148,6 +148,8 @@ contract ShutdownTest is Setup {
         vm.startPrank(management);
         vm.expectRevert("!asset");
         strategy.sweep(address(asset));
+        vm.expectRevert("!self");
+        strategy.sweep(address(strategy));
         vm.expectRevert("!alAsset");
         strategy.sweep(address(alAsset));
         vm.expectRevert(bytes("!myt"));
