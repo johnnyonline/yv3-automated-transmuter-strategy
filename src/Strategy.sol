@@ -12,12 +12,11 @@ import {AuctionFactory} from "@periphery/Auctions/AuctionFactory.sol";
 import {IMYT} from "./interfaces/alchemix/IMYT.sol";
 import {ITransmuter} from "./interfaces/alchemix/ITransmuter.sol";
 import {IAlchemistV3} from "./interfaces/alchemix/IAlchemistV3.sol";
-import {MYTLimitsLib} from "./periphery/MYTLimitsLib.sol";
+import {IMYTLimits} from "./interfaces/IMYTLimits.sol";
 
 contract AutomatedTransmuterStrategy is BaseHealthCheck {
 
     using SafeERC20 for ERC20;
-    using MYTLimitsLib for IMYT;
 
     // ===============================================================
     // Storage
@@ -57,6 +56,9 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
 
     /// @notice Min idle alAsset to open a position
     uint96 public minRedemptionAmount;
+
+    /// @notice MYT liquidity estimate. Replace if the MYT vault's liquidity adapter changes
+    IMYTLimits public mytLimits;
 
     /// @notice Open transmuter positions, each valued at the floor price it was opened at
     Position[] public positions;
@@ -100,17 +102,20 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         address _asset,
         string memory _name,
         address _alAsset,
-        address _transmuter
+        address _transmuter,
+        address _mytLimits
     ) BaseHealthCheck(_asset, _name) {
         AL_ASSET = ERC20(_alAsset);
         TRANSMUTER = ITransmuter(_transmuter);
         ALCHEMIST = IAlchemistV3(TRANSMUTER.alchemist());
         MYT = IMYT(ALCHEMIST.myt());
+        mytLimits = IMYTLimits(_mytLimits);
 
         // Sanity checks
         require(TRANSMUTER.syntheticToken() == _alAsset, "!alAsset");
         require(ALCHEMIST.underlyingToken() == _asset, "!underlying");
         require(MYT.asset() == _asset, "!myt");
+        require(mytLimits.MYT() == MYT, "!mytLimits");
 
         // Decimal scalers. alAsset must have at least as many decimals as `asset`
         ASSET_UNIT = 10 ** asset.decimals();
@@ -245,7 +250,7 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         // Matured positions pay MYT, so they and MYT already held are bounded
         // by what the MYT vault can pay out right now
         uint256 _myt = MYT.convertToAssets(MYT.balanceOf(address(this)));
-        return _idle + Math.min(_matured + _myt, MYT.availableLiquidity());
+        return _idle + Math.min(_matured + _myt, mytLimits.availableLiquidity());
     }
 
     // ===============================================================
@@ -267,6 +272,17 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         uint96 _minRedemptionAmount
     ) external onlyManagement {
         minRedemptionAmount = _minRedemptionAmount;
+    }
+
+    /// @notice Set the MYT liquidity estimate
+    /// @dev Replace if the MYT vault's liquidity adapter changes
+    /// @param _mytLimits Address of the new `MYTLimits`
+    function setMYTLimits(
+        address _mytLimits
+    ) external onlyManagement {
+        require(IMYTLimits(_mytLimits).MYT() == MYT, "!myt");
+        require(IMYTLimits(_mytLimits).availableLiquidity() != 0, "!limits");
+        mytLimits = IMYTLimits(_mytLimits);
     }
 
     /// @notice Set the min idle `asset` to kick and the max per auction
@@ -479,7 +495,7 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
         // so a failed redeem reverts
         uint256 _balance = MYT.balanceOf(address(this));
         if (_balance == 0) return;
-        uint256 _shares = Math.min(_balance, MYT.convertToShares(MYT.availableLiquidity()));
+        uint256 _shares = Math.min(_balance, MYT.convertToShares(mytLimits.availableLiquidity()));
         if (_shares != 0) MYT.redeem(_shares, address(this), address(this));
     }
 
@@ -537,7 +553,7 @@ contract AutomatedTransmuterStrategy is BaseHealthCheck {
 
         // MYT stuck from a previously failed withdrawal has liquidity again
         uint256 _myt = MYT.convertToAssets(MYT.balanceOf(address(this)));
-        if (_myt > _DUST_AMOUNT && MYT.availableLiquidity() > _DUST_AMOUNT) return true;
+        if (_myt > _DUST_AMOUNT && mytLimits.availableLiquidity() > _DUST_AMOUNT) return true;
 
         // Idle alAsset ready to be transmuted
         return _transmutableAmount() != 0;

@@ -33,6 +33,8 @@ interface IStrategyInterface is IBaseHealthCheck {
 
     function minRedemptionAmount() external view returns (uint96);
 
+    function mytLimits() external view returns (address);
+
     function AL_ASSET() external view returns (address);
 
     function TRANSMUTER() external view returns (address);
@@ -59,6 +61,10 @@ interface IStrategyInterface is IBaseHealthCheck {
 
     function setMinRedemptionAmount(
         uint96 _minRedemptionAmount
+    ) external;
+
+    function setMYTLimits(
+        address _mytLimits
     ) external;
 
     function setAuctionAmounts(

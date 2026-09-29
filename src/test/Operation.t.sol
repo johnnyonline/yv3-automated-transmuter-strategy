@@ -5,6 +5,8 @@ import "forge-std/console2.sol";
 import {Setup, ERC20, IStrategyInterface, ITransmuter, Strategy} from "./utils/Setup.sol";
 import {IMYTStrategy} from "../interfaces/alchemix/IMYTStrategy.sol";
 import {IAlchemistV3} from "../interfaces/alchemix/IAlchemistV3.sol";
+import {IMYTLimits} from "../interfaces/IMYTLimits.sol";
+import {MYTLimits} from "../periphery/MYTLimits.sol";
 
 contract OperationTest is Setup {
 
@@ -26,6 +28,7 @@ contract OperationTest is Setup {
         assertEq(strategy.TRANSMUTER(), address(transmuter));
         assertEq(strategy.ALCHEMIST(), transmuter.alchemist());
         assertEq(strategy.MYT(), address(myt));
+        assertTrue(strategy.mytLimits() != address(0));
         assertEq(strategy.AL_TO_ASSET_SCALER(), 1e12);
         assertEq(strategy.ASSET_UNIT(), 1e6);
         assertEq(alAsset.allowance(address(strategy), address(transmuter)), type(uint256).max);
@@ -628,6 +631,44 @@ contract OperationTest is Setup {
         assertEq(strategy.availableWithdrawLimit(user), 0, "!canReceiveAssets");
     }
 
+    // MYT liquidity comes from a contract management can replace
+    function test_setMYTLimits(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        buyAndTransmute(_amount);
+        mature();
+        uint256 limit = strategy.availableWithdrawLimit(user);
+        assertGt(limit, 0);
+
+        // What it says goes
+        vm.mockCall(strategy.mytLimits(), abi.encodeWithSelector(IMYTLimits.availableLiquidity.selector), abi.encode(0));
+        assertEq(strategy.availableWithdrawLimit(user), 0, "!limits");
+        vm.clearMockedCalls();
+
+        address limits = address(new MYTLimits(address(myt)));
+        vm.expectRevert("!management");
+        vm.prank(user);
+        strategy.setMYTLimits(limits);
+
+        // A replacement has to be for the same vault, and answer
+        address wrong = address(new MYTLimits(address(asset)));
+        vm.expectRevert(bytes("!myt"));
+        vm.prank(management);
+        strategy.setMYTLimits(wrong);
+        vm.mockCall(limits, abi.encodeWithSelector(IMYTLimits.availableLiquidity.selector), abi.encode(0));
+        vm.expectRevert("!limits");
+        vm.prank(management);
+        strategy.setMYTLimits(limits);
+        vm.clearMockedCalls();
+
+        vm.prank(management);
+        strategy.setMYTLimits(limits);
+        assertEq(strategy.mytLimits(), limits);
+        assertEq(strategy.availableWithdrawLimit(user), limit, "!swapped");
+    }
+
     // A liquidity adapter without `vault()` counts as illiquid
     function test_availableWithdrawLimit_adapterFallback(
         uint256 _amount
@@ -691,11 +732,16 @@ contract OperationTest is Setup {
     }
 
     function test_constructor_sanityChecks() public {
+        address limits = strategy.mytLimits();
         vm.expectRevert("!alAsset");
-        new Strategy(address(asset), "Strategy", address(asset), address(transmuter));
+        new Strategy(address(asset), "Strategy", address(asset), address(transmuter), limits);
 
         vm.expectRevert("!underlying");
-        new Strategy(address(alAsset), "Strategy", address(alAsset), address(transmuter));
+        new Strategy(address(alAsset), "Strategy", address(alAsset), address(transmuter), limits);
+
+        address wrongLimits = address(new MYTLimits(address(asset)));
+        vm.expectRevert("!mytLimits");
+        new Strategy(address(asset), "Strategy", address(alAsset), address(transmuter), wrongLimits);
     }
 
     function test_setters() public {

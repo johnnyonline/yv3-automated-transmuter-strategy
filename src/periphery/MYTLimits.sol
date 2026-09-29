@@ -6,27 +6,35 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 import {IMYT} from "../interfaces/alchemix/IMYT.sol";
 import {IMYTStrategy} from "../interfaces/alchemix/IMYTStrategy.sol";
+import {IMYTLimits} from "../interfaces/IMYTLimits.sol";
 
 /// @notice Withdraw sizing for MYT, whose `maxRedeem` always returns 0
 /// @dev Adapted from tapired/tokenized-morpho-vaultv2-lender `MorphoVaultV2Limits.sol`.
-/// Exact for Alchemix's `ERC4626Strategy` adapter, 0 for any other
-library MYTLimitsLib {
+/// Exact for Alchemix's `ERC4626Strategy` adapter, 0 for any other. Replace through
+/// the strategy's `setMYTLimits()` if the adapter changes
+contract MYTLimits is IMYTLimits {
 
-    /// @notice Assets the vault can pay out to the caller right now
-    /// @param _vault The MYT vault
+    /// @notice The MYT vault
+    IMYT public immutable MYT;
+
+    constructor(
+        address _myt
+    ) {
+        MYT = IMYT(_myt);
+    }
+
+    /// @notice Assets MYT can pay out to the caller right now
     /// @return Amount of `asset`
-    function availableLiquidity(
-        IMYT _vault
-    ) internal view returns (uint256) {
+    function availableLiquidity() external view returns (uint256) {
         // Transfer gates
-        if (!_vault.canSendShares(address(this)) || !_vault.canReceiveAssets(address(this))) return 0;
+        if (!MYT.canSendShares(msg.sender) || !MYT.canReceiveAssets(msg.sender)) return 0;
 
         // Idle asset in the vault
-        uint256 _liquid = IERC20(_vault.asset()).balanceOf(address(_vault));
+        uint256 _liquid = IERC20(MYT.asset()).balanceOf(address(MYT));
 
         // Plus what the liquidity adapter can pull from its underlying vault. The
         // allocator can switch adapters at any time, an unknown one counts as illiquid
-        address _adapter = _vault.liquidityAdapter();
+        address _adapter = MYT.liquidityAdapter();
         if (_adapter != address(0)) {
             try IMYTStrategy(_adapter).vault() returns (address _underlying) {
                 _liquid += IERC4626(_underlying).maxWithdraw(_adapter);

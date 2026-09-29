@@ -5,6 +5,9 @@ import "forge-std/Script.sol";
 
 import {IStrategyInterface} from "../src/interfaces/IStrategyInterface.sol";
 import {AutomatedTransmuterStrategy as Strategy} from "../src/Strategy.sol";
+import {MYTLimits} from "../src/periphery/MYTLimits.sol";
+import {ITransmuter} from "../src/interfaces/alchemix/ITransmuter.sol";
+import {IAlchemistV3} from "../src/interfaces/alchemix/IAlchemistV3.sol";
 
 // ---- Usage ----
 
@@ -55,7 +58,9 @@ contract Deploy is Script {
         vm.startBroadcast(_pk);
 
         // deploy
-        s_newStrategy = IStrategyInterface(address(new Strategy(s_asset, _name, s_alAsset, s_transmuter)));
+        address _myt = IAlchemistV3(ITransmuter(s_transmuter).alchemist()).myt();
+        address _mytLimits = address(new MYTLimits(_myt));
+        s_newStrategy = IStrategyInterface(address(new Strategy(s_asset, _name, s_alAsset, s_transmuter, _mytLimits)));
 
         // init
         s_newStrategy.setMinRedemptionAmount(s_minRedemptionAmount);
